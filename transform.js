@@ -1,8 +1,21 @@
 const init = arr => arr.slice(0, arr.length - 1);
 const last = arr => arr[arr.length - 1];
+const partitionKey = (key) => {
+  const parts = key.split('.');
+
+  if (parts.length <= 2) {
+    return parts;
+  }
+
+  const head = parts.slice(0, parts.length - 1);
+  const tail = parts[parts.length - 1];
+
+  return [head.join('.'), tail];
+};
+
 const mergeProps = (merged, key) => {
   const newMerged = Object.assign({}, merged);
-  const parts = key.split('.');
+  const parts = partitionKey(key);
 
   if (parts.length !== 2) {
     // not valid for brace

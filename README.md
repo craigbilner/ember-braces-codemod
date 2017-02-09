@@ -28,7 +28,6 @@ export default Ember.Component.extend({
   ),
 });
 ```
-### wontChange
 
 #### nested expressions
 
@@ -39,6 +38,19 @@ export default Ember.Component.extend({
   }),
 });
 ```
+
+will become
+
+```js
+export default Ember.Component.extend({
+  personalInfo: Ember.computed('a.b.{c,d}', function() {
+  
+  }),
+});
+```
+
+### wontChange
+
 #### things that can't be grouped
 
 ```js

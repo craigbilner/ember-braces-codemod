@@ -1,92 +1,103 @@
-const init = arr => arr.slice(0, arr.length - 1);
-const last = arr => arr[arr.length - 1];
-const partitionKey = (key) => {
-  const parts = key.split('.');
-
-  if (parts.length <= 2) {
-    return parts;
-  }
-
-  const head = parts.slice(0, parts.length - 1);
-  const tail = parts[parts.length - 1];
-
-  return [head.join('.'), tail];
-};
-
-const mergeProps = (merged, key) => {
-  const newMerged = Object.assign({}, merged);
-  const parts = partitionKey(key);
-
-  if (parts.length !== 2) {
-    // not valid for brace
-    if (merged[key]) {
-      // valid brace already exists
-      newMerged[key].includeGroup = true;
-    } else {
-      // first invalid case
-      newMerged[key] = null;
-    }
-
-    return newMerged;
-  }
-
-  const [group, prop] = parts;
-
-  if (merged[group] === null) {
-    // not a valid brace
-    newMerged[group] = {
-      includeGroup: true,
-      props: [prop],
-    };
-  } else if (merged[group]) {
-    // add to group
-    newMerged[group].props.push(prop);
-  } else {
-    newMerged[group] = {
-      props: [prop],
-    };
-  }
-
-  return newMerged;
-};
-
-const keysToList = groupedKeys => (props, key) => {
-  const info = groupedKeys[key];
-  if (!info) {
-    // no grouping, leave alone
-    props.push(key);
-    return props;
-  }
-
-  if (info.includeGroup) {
-    // group independent of brace
-    props.push(key);
-  }
-
-  if (info.props.length > 1) {
-    // use brace
-    props.push(`${key}.{${info.props}}`);
-    return props;
-  }
-
-  // standard group.prop
-  props.push(`${key}.${info.props[0]}`);
-  return props;
-};
-
-const convertToBrace = (args) => {
-  const keys = args.reduce(mergeProps, {});
-
-  return Object.keys(keys).reduce(keysToList(keys), []);
-};
-
 const toLiteral = j => name => j.literal(name);
 
-const transform = (file, api) => {
-  const j = api.jscodeshift;
-  const root = j(file.source);
+const byLengthAlpha = (a, b) => {
+  if (a.length < b.length) {
+    return 1;
+  }
 
-  const computeds = root.find(j.Property, {
+  if (a.length > b.length) {
+    return -1;
+  }
+
+  if (a > b) {
+    return 1;
+  }
+
+  if (a < b) {
+    return -1;
+  }
+
+  return 0;
+};
+
+const groupDepth = (a, b) => {
+  const aParts = a.split('.');
+  const bParts = b.split('.');
+  const shortLength = Math.min(aParts.length, bParts.length);
+
+  let i = 0;
+  for (; i < shortLength; i += 1) {
+    if (aParts[i] !== bParts[i]) {
+      break;
+    }
+  }
+
+  return i === shortLength ? i - 1 : i;
+};
+
+const takeSuffix = (key, depth) => key.split('.').slice(depth, key.length - 1).join('.');
+
+const takePrefix = (key, depth) => key.split('.').slice(0, depth).join('.');
+
+const makeKey = (group, key) => `${group}.${key}`;
+
+const groupByDepth = ([x, ...xs], groups) => {
+  if (!x) {
+    return groups;
+  }
+
+  const newGroups = groups.slice(0);
+  const lastGroup = newGroups[newGroups.length - 1];
+  const { depth: lgDepth, group: lgGroup, keys: [lgKey] } = lastGroup;
+
+  if (!lgDepth) {
+    // last key wasn't grouped
+    const depth = groupDepth(x, lgKey);
+    if (depth) {
+      // can group last one with this one
+      const lastKey = lastGroup.keys.pop();
+      lastGroup.keys.push(takeSuffix(lastKey, depth), takeSuffix(x, depth));
+      lastGroup.depth = depth;
+      lastGroup.group = takePrefix(x, depth);
+    } else {
+      // can't group this one with the last one, just add it on
+      newGroups.push({
+        depth: 0,
+        keys: [x],
+      });
+    }
+  } else if (groupDepth(x, makeKey(lgGroup, lgKey)) === lgDepth) {
+    // this one can be lumped in with the previous one(s)
+    lastGroup.keys.push(takeSuffix(x, lgDepth));
+  } else {
+    // can't be grouped, just add it on
+    newGroups.push({
+      depth: 0,
+      keys: [x],
+    });
+  }
+
+  return groupByDepth(xs, newGroups);
+};
+
+const group = ([a, b, ...c]) => {
+  if (!a) {
+    return [];
+  }
+
+  if (!b) {
+    return [a];
+  }
+
+  return groupByDepth([b, ...c], [{ depth: 0, keys: [a] }]);
+};
+
+const toBrace = ({ group: prefix, keys }) =>
+  prefix ? `${prefix}.{${keys.sort().join(',')}}` : keys[0];
+
+const emberComputed = j => [
+  j.Property,
+  {
     value: {
       type: 'CallExpression',
       callee: {
@@ -101,16 +112,25 @@ const transform = (file, api) => {
         },
       },
     },
-  });
+  },
+];
 
-  computeds.replaceWith((path) => {
-    const keys = init(path.value.value.arguments);
-    const func = last(path.value.value.arguments);
-    const newParams = convertToBrace(keys.map(({ value }) => value));
+const transform = (file, api) => {
+  const j = api.jscodeshift;
+  const root = j(file.source);
 
-    /* eslint-disable no-param-reassign */
-    path.value.value.arguments = newParams.map(toLiteral(j)).concat(func);
-    /* eslint-disable no-param-reassign */
+  root.find(...emberComputed(j)).replaceWith((path) => {
+    const args = path.value.value.arguments;
+    const func = args[args.length - 1];
+    const argNames =
+      args.slice(0, args.length - 1).map(({ value }) => value);
+    const newParams = group(argNames.sort(byLengthAlpha)).map(toBrace);
+
+    if (argNames.length !== newParams.length) {
+      /* eslint-disable no-param-reassign */
+      path.value.value.arguments = newParams.map(toLiteral(j)).concat(func);
+      /* eslint-disable no-param-reassign */
+    }
 
     return path.node;
   });

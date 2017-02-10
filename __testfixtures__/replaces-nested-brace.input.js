@@ -1,7 +1,7 @@
 import Ember from 'ember';
 
 export default Ember.Component.extend({
-  foo: Ember.computed('foo.{bar,baz}', 'foo', function() {
+  foo: Ember.computed('foo.bar', 'foo.baz.bar', function() {
 
   }),
 });

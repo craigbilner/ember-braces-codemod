@@ -1,11 +1,13 @@
 const toLiteral = j => name => j.literal(name);
 
+const keyLength = key => key.split('.').length;
+
 const byLengthAlpha = (a, b) => {
-  if (a.length < b.length) {
+  if (keyLength(a) < keyLength(b)) {
     return 1;
   }
 
-  if (a.length > b.length) {
+  if (keyLength(a) > keyLength(b)) {
     return -1;
   }
 

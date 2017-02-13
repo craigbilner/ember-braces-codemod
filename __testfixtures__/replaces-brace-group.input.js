@@ -4,4 +4,8 @@ export default Ember.Component.extend({
   foo: Ember.computed('foo.bar', 'foo.baz', 'foo', function() {
 
   }),
+
+  bar: Ember.computed('aaa', 'd.b', 'd.cc', function() {
+
+  }),
 });

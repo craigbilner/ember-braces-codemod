@@ -41,6 +41,11 @@ const takePrefix = (key, depth) => key.split('.').slice(0, depth).join('.');
 
 const makeKey = (group, key) => `${group}.${key}`;
 
+const makeGroup = key => ({
+  depth: 0,
+  keys: [key],
+});
+
 const groupByDepth = ([x, ...xs], groups) => {
   if (!x) {
     return groups;
@@ -61,20 +66,14 @@ const groupByDepth = ([x, ...xs], groups) => {
       lastGroup.group = takePrefix(x, depth);
     } else {
       // can't group this one with the last one, just add it on
-      newGroups.push({
-        depth: 0,
-        keys: [x],
-      });
+      newGroups.push(makeGroup(x));
     }
   } else if (groupDepth(x, makeKey(lgGroup, lgKey)) === lgDepth) {
     // this one can be lumped in with the previous one(s)
     lastGroup.keys.push(takeSuffix(x, lgDepth));
   } else {
     // can't be grouped, just add it on
-    newGroups.push({
-      depth: 0,
-      keys: [x],
-    });
+    newGroups.push(makeGroup(x));
   }
 
   return groupByDepth(xs, newGroups);
@@ -86,10 +85,10 @@ const group = ([a, b, ...c]) => {
   }
 
   if (!b) {
-    return [a];
+    return [makeGroup(a)];
   }
 
-  return groupByDepth([b, ...c], [{ depth: 0, keys: [a] }]);
+  return groupByDepth([b, ...c], [makeGroup(a)]);
 };
 
 const toBrace = ({ group: prefix, keys }) =>

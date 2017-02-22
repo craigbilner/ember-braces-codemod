@@ -12,4 +12,8 @@ export default Ember.Component.extend({
   baz: Ember.computed('foo.bar.baz', 'faa.baa.baz', 'foo.bar', 'fzz.bar.baz', function() {
 
   }),
+
+  bash: Ember.computed('foo.bar', 'foo.baz', 'foo.bash', function() {
+
+  }).readOnly(),
 });

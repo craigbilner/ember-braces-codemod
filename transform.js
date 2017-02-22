@@ -108,25 +108,65 @@ const emberComputed = j => [
   },
 ];
 
+const emberComputedWithExt = j => [
+  j.Property,
+  {
+    value: {
+      type: 'CallExpression',
+      callee: {
+        type: 'MemberExpression',
+        object: {
+          type: 'CallExpression',
+          callee: {
+            type: 'MemberExpression',
+            object: {
+              type: 'Identifier',
+              name: 'Ember',
+            },
+            property: {
+              name: 'computed',
+            },
+          },
+        },
+      },
+    },
+  },
+];
+
+const keysToBraces = (j, getArgs, setArgs) => (path) => {
+  const args = getArgs(path);
+  const func = args[args.length - 1];
+  const argNames =
+    args.slice(0, args.length - 1).map(({ value }) => value);
+  const newParams = group(argNames.sort(byWholeKey)).map(toBrace);
+
+  if (argNames.length !== newParams.length) {
+    setArgs(path, newParams.map(toLiteral(j)).concat(func));
+  }
+
+  return path.node;
+};
+
+const replaceComputed =
+  j => keysToBraces(j, path => path.value.value.arguments, (path, args) => {
+    /* eslint-disable no-param-reassign */
+    path.value.value.arguments = args;
+    /* eslint-disable no-param-reassign */
+  });
+
+const replaceComputedWithExt =
+  j => keysToBraces(j, path => path.value.value.callee.object.arguments, (path, args) => {
+    /* eslint-disable no-param-reassign */
+    path.value.value.callee.object.arguments = args;
+    /* eslint-disable no-param-reassign */
+  });
+
 const transform = (file, api) => {
   const j = api.jscodeshift;
   const root = j(file.source);
 
-  root.find(...emberComputed(j)).replaceWith((path) => {
-    const args = path.value.value.arguments;
-    const func = args[args.length - 1];
-    const argNames =
-      args.slice(0, args.length - 1).map(({ value }) => value);
-    const newParams = group(argNames.sort(byWholeKey)).map(toBrace);
-
-    if (argNames.length !== newParams.length) {
-      /* eslint-disable no-param-reassign */
-      path.value.value.arguments = newParams.map(toLiteral(j)).concat(func);
-      /* eslint-disable no-param-reassign */
-    }
-
-    return path.node;
-  });
+  root.find(...emberComputed(j)).replaceWith(replaceComputed(j));
+  root.find(...emberComputedWithExt(j)).replaceWith(replaceComputedWithExt(j));
 
   return root.toSource({
     quote: 'single',

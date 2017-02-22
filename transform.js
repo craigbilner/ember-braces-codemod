@@ -1,21 +1,13 @@
 const toLiteral = j => name => j.literal(name);
 
-const keyLength = key => key.split('.').length;
+const keyToString = key => key.split('.').join('');
 
-const byLengthAlpha = (a, b) => {
-  if (keyLength(a) < keyLength(b)) {
+const byWholeKey = (a, b) => {
+  if (keyToString(a) > keyToString(b)) {
     return 1;
   }
 
-  if (keyLength(a) > keyLength(b)) {
-    return -1;
-  }
-
-  if (a > b) {
-    return 1;
-  }
-
-  if (a < b) {
+  if (keyToString(a) < keyToString(b)) {
     return -1;
   }
 
@@ -125,7 +117,7 @@ const transform = (file, api) => {
     const func = args[args.length - 1];
     const argNames =
       args.slice(0, args.length - 1).map(({ value }) => value);
-    const newParams = group(argNames.sort(byLengthAlpha)).map(toBrace);
+    const newParams = group(argNames.sort(byWholeKey)).map(toBrace);
 
     if (argNames.length !== newParams.length) {
       /* eslint-disable no-param-reassign */
